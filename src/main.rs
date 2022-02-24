@@ -18,21 +18,21 @@ async fn main() {
                 .display_order(1),
         )
         .arg(
-            Arg::with_name("socks_port")
+            Arg::with_name("proxy_port")
                 .required(false)
                 .takes_value(true)
-                .long("socks_port")
+                .long("proxy_port")
                 .default_value("50000")
-                .help("socks监听端口")
+                .help("i：http代理监听端口")
                 .display_order(2),
         )
         .arg(
-            Arg::with_name("port")
+            Arg::with_name("inside_outside_port")
                 .required(false)
                 .takes_value(true)
-                .long("port")
+                .long("inside_outside_port")
                 .default_value("50001")
-                .help("inside和outside通信端口")
+                .help("i：inside和outside通信端口")
                 .display_order(3),
         )
         .arg(
@@ -41,54 +41,54 @@ async fn main() {
                 .takes_value(true)
                 .long("inside_addr")
                 .default_value("127.0.0.1:50001")
-                .help("inside连接地址")
+                .help("o：inside连接地址")
                 .display_order(4),
         )
         .arg(
-            Arg::with_name("socks_port_out")
+            Arg::with_name("proxy_port_out")
                 .required(false)
                 .takes_value(true)
-                .long("socks_port_out")
+                .long("proxy_port_out")
                 .default_value("50002")
-                .help("socks上网端口")
+                .help("o：http代理上网端口")
                 .display_order(5),
         )
         .get_matches();
 
     let mode = matches.value_of("mode").expect("获取mode失败").to_string();
-    let socks_port: u16 = matches
-        .value_of("socks_port")
-        .expect("获取socks监听端口失败")
+    let proxy_port: u16 = matches
+        .value_of("proxy_port")
+        .expect("获取http监听端口失败")
         .parse()
         .unwrap();
-    let port: u16 = matches
-        .value_of("port")
+    let inside_outside_port: u16 = matches
+        .value_of("inside_outside_port")
         .expect("获取inside和outside通信端口失败")
         .parse()
         .unwrap();
-    let inside_params = inside::InsideParams::new(port, socks_port);
+    let inside_params = inside::InsideParams::new(inside_outside_port, proxy_port);
 
     let inside_addr = matches
         .value_of("inside_addr")
         .expect("获取inside连接地址失败")
         .to_string();
-    let socks_port_out: u16 = matches
-        .value_of("socks_port_out")
-        .expect("获取socks上网端口失败")
+    let proxy_port_out: u16 = matches
+        .value_of("proxy_port_out")
+        .expect("获取http代理上网端口失败")
         .parse()
         .unwrap();
 
-    let outside_params = outside::OutsideParams::new(inside_addr, socks_port_out);
+    let outside_params = outside::OutsideParams::new(inside_addr, proxy_port_out);
 
     if mode == "i" {
         println!(
-            "设置代理：export all_proxy=socks5://127.0.0.1:{}",
-            socks_port
+            "设置代理：export http_proxy=http://127.0.0.1:{} https_proxy=http://127.0.0.1:{}",
+            proxy_port, proxy_port
         );
-        println!("取消代理：unset all_proxy");
+        println!("取消代理：unset http_proxy https_proxy");
         println!(
             "outside运行命令:reverse_internet.exe --mode o --inside_addr 内网机器ip:{}",
-            port
+            inside_outside_port
         );
         inside::run(inside_params).await;
     } else {

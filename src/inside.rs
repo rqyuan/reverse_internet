@@ -1,4 +1,5 @@
 use std::process::exit;
+
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc;
@@ -7,32 +8,35 @@ use tokio::sync::mpsc::{Receiver, Sender};
 ///内网运行
 #[derive(Debug, Copy, Clone)]
 pub struct InsideParams {
-    ///socks流量进入端口
-    socks_port: u16,
-    ///监听端口，outside连接的端口
-    port: u16,
+    ///代理流量进入端口
+    proxy_port: u16,
+    ///inside、outside通信端口
+    inside_outside_port: u16,
 }
 
 impl InsideParams {
-    pub fn new(port: u16, socks_port: u16) -> InsideParams {
-        InsideParams { port, socks_port }
+    pub fn new(inside_outside_port: u16, proxy_port: u16) -> InsideParams {
+        InsideParams {
+            inside_outside_port,
+            proxy_port,
+        }
     }
 }
 
 ///运行函数
 pub async fn run(params: InsideParams) {
-    // inside和outside通信：当inside接收到socks请求后，通知outside新增连接进行请求转发
-    let (port_tx, port_rx) = mpsc::channel::<i8>(100);
-    // 接收socks5请求
-    let (socks_tx, socks_rx) = mpsc::channel::<TcpStream>(100);
-    let w1 = run_port(params.clone(), socks_tx, port_rx);
-    let w2 = run_socks(params.clone(), socks_rx, port_tx);
+    // inside和outside通信：当inside接收到流量后，通知outside新增连接进行请求转发
+    let (inside_outside_tx, inside_outside_rx) = mpsc::channel::<i8>(100);
+    // 接收请求
+    let (client_tx, client_rx) = mpsc::channel::<TcpStream>(100);
+    let w1 = run_port(params.clone(), client_tx, inside_outside_rx);
+    let w2 = run_socks(params.clone(), client_rx, inside_outside_tx);
     tokio::join!(w1, w2);
 }
 
 /// 运行inside和outside通信
 async fn run_port(params: InsideParams, tx: Sender<TcpStream>, mut port_rx: Receiver<i8>) {
-    let listener = TcpListener::bind(format!("0.0.0.0:{}", params.port))
+    let listener = TcpListener::bind(format!("0.0.0.0:{}", params.inside_outside_port))
         .await
         .unwrap();
 
@@ -70,15 +74,15 @@ async fn run_port(params: InsideParams, tx: Sender<TcpStream>, mut port_rx: Rece
     }
 }
 
-///运行socks5监听
+///运行端口监听，进行tcp流量转发
 async fn run_socks(params: InsideParams, mut rx: Receiver<TcpStream>, port_tx: Sender<i8>) {
-    let socks_listener = TcpListener::bind(format!("0.0.0.0:{}", params.socks_port))
+    let tcp_listener = TcpListener::bind(format!("0.0.0.0:{}", params.proxy_port))
         .await
-        .expect("运行socks5监听失败");
+        .expect("运行http监听失败");
 
     loop {
-        let (socks_client, _) = socks_listener.accept().await.unwrap();
-        //读取socks进来的流量
+        let (socks_client, _) = tcp_listener.accept().await.unwrap();
+        //读取进来的流量
         let (mut ir, mut iw) = socks_client.into_split();
 
         // 通知outside发送新的连接，进行流量转发

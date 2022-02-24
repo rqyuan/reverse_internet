@@ -1,30 +1,33 @@
-use std::net::SocketAddr;
 use std::process::exit;
 use std::time::Duration;
+
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
+
+use crate::http;
+use crate::http::HttpArgs;
 
 ///外网运行
 #[derive(Debug)]
 pub struct OutsideParams {
     ///inside连接地址：ip:port
     inside_addr: String,
-    ///socks上网端口
-    socks_port: u16,
+    ///http代理监听端口
+    proxy_port: u16,
 }
 
 impl OutsideParams {
-    pub fn new(inside_addr: String, socks_port: u16) -> OutsideParams {
+    pub fn new(inside_addr: String, proxy_port: u16) -> OutsideParams {
         OutsideParams {
             inside_addr,
-            socks_port,
+            proxy_port,
         }
     }
 
     pub fn copy(&self) -> OutsideParams {
         OutsideParams {
             inside_addr: self.inside_addr.clone(),
-            socks_port: self.socks_port.clone(),
+            proxy_port: self.proxy_port.clone(),
         }
     }
 }
@@ -59,14 +62,12 @@ pub async fn run(params: OutsideParams) {
         }
     });
 
-    // 创建socks代理流量出口
-    let addr = SocketAddr::new("0.0.0.0".parse().unwrap(), params.socks_port);
-    // 未使用认证
-    socks5_proxy::server::new(addr, None)
-        .expect("创建socks5代理失败，请换个端口")
-        .run()
-        .await
-        .unwrap();
+    let http_args = HttpArgs {
+        port: params.proxy_port,
+        next_http: String::new(),
+    };
+
+    http::run(http_args).await;
 }
 
 async fn dowith_inside(params: OutsideParams) {
@@ -74,9 +75,9 @@ async fn dowith_inside(params: OutsideParams) {
     let server_result = TcpStream::connect(params.inside_addr.clone()).await;
     let (mut ir, mut iw) = server_result.expect("与inside建立连接失败").into_split();
 
-    // 与下级socks代理建立连接
-    let server_result = TcpStream::connect(format!("127.0.0.1:{}", params.socks_port)).await;
-    let (mut sr, mut sw) = server_result.expect("与下级socks建立连接失败").into_split();
+    // 与下级http代理建立连接
+    let server_result = TcpStream::connect(format!("127.0.0.1:{}", params.proxy_port)).await;
+    let (mut sr, mut sw) = server_result.expect("与http代理建立连接失败").into_split();
 
     tokio::spawn(async move {
         tokio::io::copy(&mut ir, &mut sw).await.unwrap_or(0);
