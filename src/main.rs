@@ -4,7 +4,6 @@ use reverse_internet::{inside, outside};
 
 /// 环境说明：外网机器（vpn、代理等）能连接内网机器
 /// 功能说明：内外网机器通过该应用建立连接，使内网机器能通过外网机器上网
-/// 已知问题：偶发响应为空
 #[tokio::main]
 async fn main() {
     let matches = App::new("args")
