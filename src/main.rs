@@ -44,13 +44,22 @@ async fn main() {
                 .display_order(4),
         )
         .arg(
-            Arg::with_name("proxy_port_out")
+            Arg::with_name("proxy_out_port")
                 .required(false)
                 .takes_value(true)
-                .long("proxy_port_out")
-                .default_value("50002")
-                .help("o：http代理上网端口")
+                .long("proxy_out_port")
+                .default_value("60000")
+                .help("o：程序使用端口")
                 .display_order(5),
+        )
+        .arg(
+            Arg::with_name("proxy_out_addr")
+                .required(false)
+                .takes_value(true)
+                .long("proxy_out_addr")
+                .default_value("")
+                .help("o：外部http代理地址，例如：localhost:60003。有值则proxy_out_port不生效")
+                .display_order(6),
         )
         .get_matches();
 
@@ -71,13 +80,17 @@ async fn main() {
         .value_of("inside_addr")
         .expect("获取inside连接地址失败")
         .to_string();
-    let proxy_port_out: u16 = matches
-        .value_of("proxy_port_out")
-        .expect("获取http代理上网端口失败")
+    let proxy_out_port: u16 = matches
+        .value_of("proxy_out_port")
+        .expect("获取程序使用端口失败")
         .parse()
         .unwrap();
+    let proxy_out_addr = matches
+        .value_of("proxy_out_addr")
+        .expect("获取外部http代理地址失败")
+        .to_string();
 
-    let outside_params = outside::OutsideParams::new(inside_addr, proxy_port_out);
+    let outside_params = outside::OutsideParams::new(inside_addr, proxy_out_port, proxy_out_addr);
 
     if mode == "i" {
         println!(
